@@ -62,7 +62,7 @@ export default function Footer() {
                 {/* About Section */}
                 <div className="space-y-6 lg:col-span-4 md:col-span-5 lg:pr-10">
                     <div className='flex items-center'>
-                        <img src={logoUrl} alt="Poolito Logo" className="w-30" />
+                        <img src={logoUrl} alt="HCH Logo" className="w-30" />
                         <h1 className='text-2xl font-extrabold text-white'>Home Care Hub</h1>
                     </div>
                     <p className="text-sm text-left">
@@ -134,7 +134,7 @@ export default function Footer() {
         <div className="bg-green-500 text-white">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center text-sm">
                 <p className="text-center sm:text-left mb-2 sm:mb-0">
-                    © Copyright 2025 – Poolito. All rights reserved. <span className="text-gray-200">Vecuro</span>
+                    © Copyright 2025 – HCH. All rights reserved. <span className="text-gray-200">Vecuro</span>
                 </p>
                 <div className="flex items-center space-x-4">
                     {/* Placeholder for payment icons */}

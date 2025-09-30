@@ -13,7 +13,7 @@ const DeleteIcon = () => <svg className="w-5 h-5 mr-2" fill="none" stroke="curre
 const AdminDashboardLayout = ({ children }) => (
     <div className="font-sans bg-gray-100 min-h-screen">
         <aside className="hidden lg:fixed lg:inset-y-0 lg:w-64 lg:flex lg:flex-col bg-[#083d41] p-4">
-            <h1 className="text-3xl font-bold text-white text-center">Poolito <span className="text-green-400">Admin</span></h1>
+            <h1 className="text-3xl font-bold text-white text-center">HCH <span className="text-green-400">Admin</span></h1>
             {/* Nav links would go here */}
         </aside>
         <main className="lg:pl-64 flex flex-col min-h-screen">

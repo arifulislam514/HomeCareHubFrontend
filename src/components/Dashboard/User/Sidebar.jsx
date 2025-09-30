@@ -26,7 +26,7 @@ const Sidebar = ({ activePage, setActivePage }) => {
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-[#083d41] text-white">
       <div className="p-6 text-center border-b border-gray-700">
-        <h1 className="text-3xl font-bold">Poolito</h1>
+        <h1 className="text-3xl font-bold">HCH</h1>
       </div>
       <nav className="flex-grow p-4 space-y-2">
         {navItems.map((item) => (
