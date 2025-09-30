@@ -1,7 +1,7 @@
 import React from 'react';
 import ExcellentService from '../components/Products/ExcellentService';
 import BookingSection from '../components/Products/BookingSection';
-import FaqSection from '../components/Products/FaqSection';
+import FaqSection from '../components/Products/FAQSection';
 import PartnersSection from '../components/Products/PartnersSection';
 import PageBanner from '../layouts/PageBanner';
 
