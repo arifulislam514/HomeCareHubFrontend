@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import useAuth from "../../../hooks/useAuth";
 import {
   House,
   ClipboardCheck,
@@ -12,7 +13,34 @@ const LogoutIcon = () => <LogOut />;
 
 const Sidebar = ({ activePage, setActivePage }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { logoutUser } = useAuth();
+  const navigate = useNavigate();
 
+  const handleLogoutClick = async () => {
+    try {
+      if (typeof window !== "undefined") {
+        if (Array.isArray(window.dataLayer)) {
+          window.dataLayer.push({
+            event: "logout",
+            category: "auth",
+            action: "logout",
+            label: "sidebar-user",
+          });
+        }
+        if (window.umami?.track) window.umami.track("logout");
+        if (window.analytics?.track) window.analytics.track("Logout");
+      }
+    } catch (_) {}
+    setSidebarOpen(false);
+    try {
+      const maybe = logoutUser?.();
+      if (maybe && typeof maybe.then === "function") {
+        await maybe;
+      }
+    } finally {
+      navigate("/", { replace: true });
+    }
+  };
   const navItems = [
     { icon: <House />, label: "Dashboard", path: "/dashboard" },
     {
@@ -26,7 +54,9 @@ const Sidebar = ({ activePage, setActivePage }) => {
   const SidebarContent = () => (
     <div className="flex flex-col h-full bg-[#083d41] text-white">
       <div className="p-6 text-center border-b border-gray-700">
-        <a href="https://home-care-hub-frontend.vercel.app/"><h1 className="text-3xl font-bold">Home Care</h1></a>
+        <a href="https://home-care-hub-frontend.vercel.app/">
+          <h1 className="text-3xl font-bold">Home Care</h1>
+        </a>
       </div>
       <nav className="flex-grow p-4 space-y-2">
         {navItems.map((item) => (
@@ -45,7 +75,17 @@ const Sidebar = ({ activePage, setActivePage }) => {
         ))}
       </nav>
       <div className="p-4 border-t border-gray-700">
-        <button className="w-full flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 text-left">
+        <button
+          type="button"
+          onClick={handleLogoutClick}
+          aria-label="Log out"
+          title="Log out"
+          data-testid="logout-button"
+          data-cy="logout-button"
+          data-event="logout"
+          data-event-context="sidebar-user"
+          className="w-full flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 text-left"
+        >
           <LogoutIcon />
           <span className="ml-3">Logout</span>
         </button>
