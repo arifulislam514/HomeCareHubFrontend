@@ -1,9 +1,9 @@
 import { useForm } from "react-hook-form";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router-dom";
 import useAuthContext from "../hooks/useAuthContext";
 import ErroAlert from "../components/ErroAlert";
-import { useState } from "react";
-import logoUrl from "../assets/images/Logo.png"
+import { useEffect, useState } from "react";
+import logoUrl from "../assets/images/Logo.png";
 
 // --- SVG Icon Components ---
 const UserIcon = () => (
@@ -79,14 +79,12 @@ const FacebookIcon = () => (
 // --- Logo Component ---
 const Logo = () => (
   <div className="flex items-center space-x-2">
-    <img
-      src={logoUrl}
-      alt="HCH Logo"
-      className="w-18 h-auto" // Adjust width and height as needed
-    />
+    <img src={logoUrl} alt="HCH Logo" className="w-18 h-auto" />
     <span className="text-2xl font-bold text-gray-800">HCH</span>
   </div>
 );
+
+const isAdminUser = (u) => u?.role === "Admin";
 
 export default function SignInPage() {
   const {
@@ -94,35 +92,42 @@ export default function SignInPage() {
     handleSubmit,
     formState: { errors },
   } = useForm();
-
   const navigate = useNavigate();
-
-  const { errorMsg, loginUser } = useAuthContext();
+  const { user, errorMsg, loginUser } = useAuthContext();
   const [loading, setLoading] = useState(false);
+
+  // redirect after the auth context sets `user`
+  useEffect(() => {
+    if (!user) return;
+    console.log("User role:", user.role);
+    console.log("ME from /auth/users/me/:", user.role);
+    console.log("isAdminUser:", isAdminUser(user));
+    navigate(isAdminUser(user) ? "/admin" : "/dashboard", { replace: true });
+  }, [user, navigate]);
 
   const onSubmit = async (data) => {
     setLoading(true);
     try {
-      const response = await loginUser(data);
-      console.log(response);
-      if (response.success) navigate("/dashboard");
-    } catch (error) {
-      console.log("Login Failed", error);
+      const me = await loginUser(data);
+      if (me)
+        navigate(isAdminUser(me) ? "/admin" : "/dashboard", { replace: true });
     } finally {
       setLoading(false);
     }
   };
 
+  // Submit only triggers login; navigation is handled by the effect above
+
   return (
     <>
       <style>{`
         .bg-pattern {
-            background-color: #f8fafc;
-            background-image: 
-                radial-gradient(#e2e8f0 1px, transparent 1px);
-            background-size: 16px 16px;
+          background-color: #f8fafc;
+          background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+          background-size: 16px 16px;
         }
-    `}</style>
+      `}</style>
+
       <section className="font-sans bg-pattern min-h-screen flex items-center justify-center p-4">
         <div className="max-w-md w-full mx-auto">
           <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
@@ -134,6 +139,7 @@ export default function SignInPage() {
 
               <div className="w-full">
                 {errorMsg && <ErroAlert error={errorMsg} />}
+
                 <h2 className="text-3xl font-bold text-[#083d41] mb-2 text-center">
                   Sign In
                 </h2>
@@ -141,7 +147,11 @@ export default function SignInPage() {
                   Please enter your credentials to proceed.
                 </p>
 
-                <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                <form
+                  onSubmit={handleSubmit(onSubmit)}
+                  className="space-y-6"
+                  noValidate
+                >
                   <div className="relative">
                     <span className="absolute inset-y-0 left-0 flex items-center pl-4">
                       <UserIcon />
@@ -149,7 +159,9 @@ export default function SignInPage() {
                     <input
                       id="email"
                       type="email"
+                      autoComplete="email"
                       placeholder="Your Email *"
+                      aria-invalid={!!errors.email}
                       {...register("email", { required: "Email is required" })}
                       className="w-full pl-12 pr-4 py-4 rounded-lg bg-gray-100 border-2 border-transparent focus:border-green-300 focus:bg-white focus:ring-0 transition"
                     />
@@ -167,7 +179,9 @@ export default function SignInPage() {
                     <input
                       id="password"
                       type="password"
+                      autoComplete="current-password"
                       placeholder="Password *"
+                      aria-invalid={!!errors.password}
                       {...register("password", {
                         required: "Password is required",
                       })}
@@ -181,8 +195,12 @@ export default function SignInPage() {
                   </div>
 
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <label className="flex items-center text-sm text-gray-600">
+                    <label
+                      htmlFor="remember"
+                      className="flex items-center text-sm text-gray-600"
+                    >
                       <input
+                        id="remember"
                         type="checkbox"
                         className="h-4 w-4 rounded border-gray-300 text-green-500 focus:ring-green-400 focus:ring-offset-0"
                       />
@@ -199,9 +217,10 @@ export default function SignInPage() {
                   <div>
                     <button
                       type="submit"
-                      className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-full transition duration-300 text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                      disabled={loading}
+                      className="w-full bg-green-500 hover:bg-green-600 disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold py-4 px-6 rounded-full transition duration-300 text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                     >
-                      {loading ? "Signing In..." : "Signin"}
+                      {loading ? "Signing In..." : "Sign In"}
                     </button>
                   </div>
                 </form>
@@ -215,10 +234,16 @@ export default function SignInPage() {
                 </div>
 
                 <div className="flex justify-center gap-4">
-                  <button className="w-14 h-14 flex items-center justify-center bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition">
+                  <button
+                    type="button"
+                    className="w-14 h-14 flex items-center justify-center bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition"
+                  >
                     <GoogleIcon />
                   </button>
-                  <button className="w-14 h-14 flex items-center justify-center bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition">
+                  <button
+                    type="button"
+                    className="w-14 h-14 flex items-center justify-center bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition"
+                  >
                     <FacebookIcon />
                   </button>
                 </div>

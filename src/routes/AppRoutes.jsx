@@ -15,6 +15,8 @@ import AdminDashboard from "../components/Dashboard/Admin/AdminDashboard";
 import ManageBookingsPage from "../components/Dashboard/Admin/ManageBookingsPage";
 import UsersPage from "../components/Dashboard/Admin/UsersPage";
 import AdminServicesPage from "../components/Dashboard/Admin/AdminServicesPage";
+import AdminRoute from "../components/AdminRoute";
+import PrivateRoute from "../components/PrivateRoute";
 
 const AppRoutes = () => {
   return (
@@ -29,16 +31,24 @@ const AppRoutes = () => {
         <Route path="signin" element={<SignInPage />} />
         <Route path="signup" element={<SignUpPage />} />
       </Route>
-      <Route path="/dashboard" element={<DashboardLayout />}>
-        <Route index element={<UserDashboard />} />
-        <Route path="bookings" element={<MyBookingsPage />} />
-        <Route path="Profile" element={<ProfilePage />} />
+
+      {/* User dashboard (must be logged in) */}
+      <Route element={<PrivateRoute />}>
+        <Route path="/dashboard" element={<DashboardLayout />}>
+          <Route index element={<UserDashboard />} />
+          <Route path="bookings" element={<MyBookingsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+        </Route>
       </Route>
-      <Route path="/admin" element={<AdminDashboardLayout />}>
-        <Route index element={<AdminDashboard />} />
-        <Route path="manage-bookings" element={<ManageBookingsPage />} />
-        <Route path="users-page" element={<UsersPage />} />
-        <Route path="services-page" element={<AdminServicesPage />} />
+
+      {/* Admin dashboard (must be admin) */}
+      <Route element={<AdminRoute />}>
+        <Route path="/admin" element={<AdminDashboardLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="manage-bookings" element={<ManageBookingsPage />} />
+          <Route path="users-page" element={<UsersPage />} />
+          <Route path="services-page" element={<AdminServicesPage />} />
+        </Route>
       </Route>
     </Routes>
   );
