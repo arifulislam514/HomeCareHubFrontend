@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import authApiClient from "../../../services/auth-api-client"; // ← adjust path if needed
+import { Link } from "react-router-dom";
 
 // --- SVG Icon Components ---
 const HomeIcon = () => (
@@ -93,42 +94,38 @@ const DeleteIcon = () => (
   </svg>
 );
 
-// This is a placeholder for the actual layout component from your AdminDashboard.
-const AdminDashboardLayout = ({ children }) => (
-  <div className="font-sans bg-gray-100 min-h-screen">
-    <aside className="hidden lg:fixed lg:inset-y-0 lg:w-64 lg:flex lg:flex-col bg-[#083d41] p-4">
-      <h1 className="text-3xl font-bold text-white text-center">
-        HCH <span className="text-green-400">Admin</span>
-      </h1>
-      {/* Nav links would go here */}
-    </aside>
-    <main className="lg:pl-64 flex flex-col min-h-screen">
-      <header className="sticky top-0 z-30 bg-white shadow-sm p-4">
-        <h1 className="text-xl font-bold text-[#083d41]">Manage Services</h1>
-      </header>
-      <div className="flex-grow p-6 sm:p-8">{children}</div>
-    </main>
-  </div>
-);
-
 // --- Reusable Admin Service Card Component ---
-const AdminServiceCard = ({ icon, title, description, price }) => (
+const AdminServiceCard = ({
+  icon,
+  title,
+  description,
+  price,
+  editHref,
+  onDelete,
+  deleting,
+}) => (
   <div className="bg-white rounded-xl shadow-md overflow-hidden h-full flex flex-col justify-between">
     <div className="p-6 text-center">
       <div className="inline-block p-4 bg-green-100 rounded-full mb-4">
         {icon}
       </div>
       <h3 className="font-bold text-xl text-[#083d41] mb-1">{title}</h3>
-      {/* NEW: price line */}
       <p className="text-lg font-bold text-[#083d41] mb-2">{price}</p>
       <p className="text-gray-600 text-sm">{description}</p>
     </div>
     <div className="flex border-t">
-      <button className="w-1/2 flex items-center justify-center py-3 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors">
+      <Link
+        to={editHref}
+        className="w-1/2 flex items-center justify-center py-3 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
+      >
         <EditIcon /> Edit
-      </button>
-      <button className="w-1/2 flex items-center justify-center py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors border-l">
-        <DeleteIcon /> Delete
+      </Link>
+      <button
+        onClick={onDelete}
+        disabled={deleting}
+        className="w-1/2 flex items-center justify-center py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors border-l disabled:opacity-60"
+      >
+        <DeleteIcon /> {deleting ? "Deleting..." : "Delete"}
       </button>
     </div>
   </div>
@@ -143,7 +140,7 @@ const formatPrice = (n, currency = "USD") =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(n) || 0);
-// Use keywords to pick an icon so your look stays consistent
+
 const pickIcon = (title = "") => {
   const t = title.toLowerCase();
   if (t.includes("office")) return <OfficeIcon />;
@@ -155,15 +152,12 @@ const pickIcon = (title = "") => {
   return <HomeIcon />;
 };
 
-// Normalize API item -> your card props (price will be price_with_tax)
 const apiServiceToCard = (s) => {
   const title = s?.name || s?.title || "Service";
   const description =
     s?.description ||
     s?.details ||
     "Quality service provided by our professional team.";
-
-  // Use price_with_tax primarily; fallbacks for robustness
   const rawPrice =
     s?.price_with_tax ??
     s?.priceWithTax ??
@@ -173,10 +167,11 @@ const apiServiceToCard = (s) => {
     0;
 
   return {
+    id: s?.id,
     icon: pickIcon(title),
     title,
     description,
-    price: formatPrice(rawPrice), // ← shown on the card
+    price: formatPrice(rawPrice),
   };
 };
 
@@ -215,8 +210,11 @@ const fetchAllPaginated = async (endpoint) => {
 };
 
 const AdminServicesPage = () => {
-  const [services, setServices] = useState([]); // ← now includes price
+  const [services, setServices] = useState([]);
+  const [collectionType, setCollectionType] = useState("products"); // or 'services'
+  const [collectionBase, setCollectionBase] = useState(null); // e.g. '/api/v1/products/' or '/products/'
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -227,10 +225,10 @@ const AdminServicesPage = () => {
 
     // Try likely endpoints in order; first one that returns data wins
     const candidates = [
-      resolve("/api/v1/services/"),
       resolve("/api/v1/products/"),
-      resolve("/services/"),
       resolve("/products/"),
+      resolve("/api/v1/services/"),
+      resolve("/services/"),
     ];
 
     (async () => {
@@ -240,6 +238,13 @@ const AdminServicesPage = () => {
           try {
             const list = await fetchAllPaginated(ep);
             if (list && list.length) {
+              setCollectionType(
+                ep.toLowerCase().includes("services") ? "services" : "products"
+              );
+              // normalize to have trailing slash
+              const normalized = ep.endsWith("/") ? ep : `${ep}/`;
+              setCollectionBase(normalized);
+
               const cards = list.map(apiServiceToCard);
               if (!cancelled) setServices(cards);
               return;
@@ -248,7 +253,6 @@ const AdminServicesPage = () => {
             // try next endpoint
           }
         }
-        // If nothing worked, leave empty; UI will just render no cards
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -258,6 +262,25 @@ const AdminServicesPage = () => {
       cancelled = true;
     };
   }, []);
+
+  const handleDelete = async (id) => {
+    if (!collectionBase || !id) return;
+
+    const ok = window.confirm("Are you sure you want to delete this item?");
+    if (!ok) return;
+
+    try {
+      setDeletingId(id);
+      // DELETE /<collection>/<id>/
+      await authApiClient.delete(`${collectionBase}${id}/`);
+      // Optimistically remove from UI
+      setServices((prev) => prev.filter((s) => s.id !== id));
+    } catch (e) {
+      alert("Delete failed. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div>
@@ -269,15 +292,17 @@ const AdminServicesPage = () => {
             Add, edit, or remove company services.
           </p>
         </div>
-        <button className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-5 rounded-lg transition-colors">
+        <Link
+          to={`/admin/${collectionType}/new`}
+          className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-5 rounded-lg transition-colors"
+        >
           + Add New Service
-        </button>
+        </Link>
       </div>
 
       {/* Services Grid (design unchanged) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
         {loading ? (
-          // simple loading state; layout stays identical
           Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
@@ -285,13 +310,16 @@ const AdminServicesPage = () => {
             />
           ))
         ) : services.length > 0 ? (
-          services.map((service, index) => (
+          services.map((service) => (
             <AdminServiceCard
-              key={index}
+              key={service.id}
               icon={service.icon}
               title={service.title}
               description={service.description}
-              price={service.price} // ← NEW
+              price={service.price}
+              editHref={`/admin/${collectionType}/${service.id}/edit`}
+              onDelete={() => handleDelete(service.id)}
+              deleting={deletingId === service.id}
             />
           ))
         ) : (
@@ -304,13 +332,4 @@ const AdminServicesPage = () => {
   );
 };
 
-// To use this, you would render it inside the main layout like this:
-// export default function App() {
-//   return (
-//     <AdminDashboardLayout>
-//       <AdminServicesPage />
-//     </AdminDashboardLayout>
-//   );
-// }
-// For this example, we export the component directly.
 export default AdminServicesPage;

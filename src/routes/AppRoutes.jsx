@@ -17,6 +17,7 @@ import UsersPage from "../components/Dashboard/Admin/UsersPage";
 import AdminServicesPage from "../components/Dashboard/Admin/AdminServicesPage";
 import AdminRoute from "../components/AdminRoute";
 import PrivateRoute from "../components/PrivateRoute";
+import ProductEditPage from "../components/Products/ProductEditPage";
 
 const AppRoutes = () => {
   return (
@@ -48,6 +49,8 @@ const AppRoutes = () => {
           <Route path="manage-bookings" element={<ManageBookingsPage />} />
           <Route path="users-page" element={<UsersPage />} />
           <Route path="services-page" element={<AdminServicesPage />} />
+          <Route path="products/:id/edit" element={<ProductEditPage />} />
+          <Route path="products/new" element={<ProductEditPage />} />
         </Route>
       </Route>
     </Routes>
