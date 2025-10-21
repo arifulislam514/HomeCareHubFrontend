@@ -18,6 +18,7 @@ import AdminServicesPage from "../components/Dashboard/Admin/AdminServicesPage";
 import AdminRoute from "../components/AdminRoute";
 import PrivateRoute from "../components/PrivateRoute";
 import ProductEditPage from "../components/Products/ProductEditPage";
+import ProductDetailsPage from "../components/ProductDetails/ProductDetailsPage";
 
 const AppRoutes = () => {
   return (
@@ -31,6 +32,7 @@ const AppRoutes = () => {
         <Route path="contact" element={<ContactUs />} />
         <Route path="signin" element={<SignInPage />} />
         <Route path="signup" element={<SignUpPage />} />
+        <Route path="products/:id" element={<ProductDetailsPage />} />
       </Route>
 
       {/* User dashboard (must be logged in) */}
