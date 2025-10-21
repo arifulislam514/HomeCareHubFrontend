@@ -47,14 +47,18 @@ const Sidebar = ({ activePage, setActivePage }) => {
   };
 
   const navItems = [
-    { icon: <House />, label: "Dashboard", path: "/admin", active: true },
+    { icon: <House />, label: "Dashboard", path: "/admin" },
     {
       icon: <ClipboardCheck />,
       label: "Manage Bookings",
-      path: "manage-bookings",
+      path: "/admin/manage-bookings",
     },
-    { icon: <CircleUserRound />, label: "Users", path: "users-page" },
-    { icon: <GalleryVerticalEnd />, label: "Services", path: "services-page" },
+    { icon: <CircleUserRound />, label: "Users", path: "/admin/users-page" },
+    {
+      icon: <GalleryVerticalEnd />,
+      label: "Services",
+      path: "/admin/services-page",
+    },
   ];
 
   const SidebarContent = () => (
@@ -69,6 +73,7 @@ const Sidebar = ({ activePage, setActivePage }) => {
           <NavLink
             key={item.label}
             to={item.path}
+            end={item.path === "/admin"}
             className={({ isActive }) =>
               `w-full flex items-center px-4 py-3 rounded-lg transition-colors text-left ${
                 isActive ? "bg-green-500" : "hover:bg-gray-700"

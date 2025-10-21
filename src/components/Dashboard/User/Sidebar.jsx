@@ -63,6 +63,7 @@ const Sidebar = ({ activePage, setActivePage }) => {
           <NavLink
             key={item.label}
             to={item.path}
+            end={item.path === "/dashboard"} // ← exact-match only for the root
             className={({ isActive }) =>
               `w-full flex items-center px-4 py-3 rounded-lg transition-colors text-left ${
                 isActive ? "bg-green-500" : "hover:bg-gray-700"

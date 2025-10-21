@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import logoUrl from "../assets/images/Logo.png";
+import authApiClient from "../services/auth-api-client"; // uses your configured baseURL + JWT if any
+
 // Replace with your logo path
 const Logo = () => (
   <div className="flex items-center space-x-2">
@@ -49,8 +51,47 @@ const CloseIcon = () => (
   </svg>
 );
 
+// ------- small helpers for avatar/initials -------
+const initials = (first, last) => {
+  const a = (first || "").trim()[0] || "";
+  const b = (last || "").trim()[0] || "";
+  return (a + b || "U").toUpperCase();
+};
+const absUrl = (url, base) => {
+  try {
+    return new URL(url, base).href;
+  } catch {
+    return url;
+  }
+};
+
 export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  // --- auth + profile state (NEW) ---
+  const [isAuthed, setIsAuthed] = useState(false);
+  const [me, setMe] = useState(null); // { first_name, last_name, avatar }
+  useEffect(() => {
+    const hasTokens = !!localStorage.getItem("authTokens");
+    setIsAuthed(hasTokens);
+
+    if (hasTokens) {
+      const base = authApiClient?.defaults?.baseURL || "";
+      const mePath = /\/api\/v1\/?$/i.test(base) ? "/users/me/" : "/api/v1/users/me/";
+      authApiClient
+        .get(mePath)
+        .then(({ data }) => setMe(data))
+        .catch(() => {
+          // ignore, we’ll just show initials placeholder
+        });
+    }
+  }, []);
+  const avatarUrl = me?.avatar
+    ? absUrl(me.avatar, authApiClient?.defaults?.baseURL || "")
+    : `https://placehold.co/36x36/EBF4FA/083d41?text=${encodeURIComponent(
+        initials(me?.first_name, me?.last_name)
+      )}`;
+
   const navLinks = [
     { text: "HOME", path: "/" },
     { text: "ABOUT US", path: "/about" },
@@ -76,7 +117,7 @@ export default function App() {
 
             {/* Main container for navigation and call to action */}
             <div className="flex items-center justify-end flex-grow">
-              {/* This div creates the dark background with the angled cut */}
+              {/* Background angle */}
               <div
                 className="absolute left-0 right-0 h-24 bg-[#083d41] "
                 style={{
@@ -99,14 +140,40 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* Sign In and Sign Up Section */}
+                {/* RIGHT SIDE: Auth area (desktop) */}
                 <div className="hidden lg:flex items-center ml-6 pl-6 border-l border-gray-600 space-x-3">
-                  <button className="text-green-400 font-semibold text-sm py-2 px-4 rounded-md border border-green-400 hover:bg-green-400 hover:text-white transition-colors duration-300">
-                    <Link to="/signin">Sign In</Link>
-                  </button>
-                  <button className="bg-green-500 text-white font-semibold text-sm py-2 px-4 rounded-md hover:bg-green-600 transition-colors duration-300">
-                    <Link to="/signup">Sign Up</Link>
-                  </button>
+                  {!isAuthed ? (
+                    <>
+                      {/* Logged OUT: show Sign In / Sign Up (unchanged) */}
+                      <button className="text-green-400 font-semibold text-sm py-2 px-4 rounded-md border border-green-400 hover:bg-green-400 hover:text-white transition-colors duration-300">
+                        <Link to="/signin">Sign In</Link>
+                      </button>
+                      <button className="bg-green-500 text-white font-semibold text-sm py-2 px-4 rounded-md hover:bg-green-600 transition-colors duration-300">
+                        <Link to="/signup">Sign Up</Link>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {/* Logged IN: show Dashboard + Avatar */}
+                      <Link
+                        to="/dashboard"
+                        className="bg-green-500 text-white font-semibold text-sm py-2 px-4 rounded-md hover:bg-green-600 transition-colors duration-300"
+                      >
+                        Dashboard
+                      </Link>
+                      <Link
+                        to="/dashboard/profile"
+                        className="ml-2 inline-flex items-center"
+                        title={`${me?.first_name || ""} ${me?.last_name || ""}`.trim() || "Profile"}
+                      >
+                        <img
+                          src={avatarUrl}
+                          alt="Profile"
+                          className="w-9 h-9 rounded-full border-2 border-white object-cover"
+                        />
+                      </Link>
+                    </>
+                  )}
                 </div>
 
                 {/* Mobile Menu Button */}
@@ -145,7 +212,6 @@ export default function App() {
           {/* Menu Header */}
           <div className="flex items-center justify-between mb-8">
             {/* A slightly smaller logo for the sidebar */}
-
             <div className="flex-shrink-0 z-20">
               <div
                 className="bg-white md:pl-8 pr-8 md:pr-12"
@@ -180,16 +246,41 @@ export default function App() {
             ))}
           </ul>
         </div>
-        {/* Sign In and Sign Up Section */}
+
+        {/* RIGHT SIDE (mobile): Auth area */}
         <div className="p-5 border-t">
-          <div className="flex flex-col space-y-3">
-            <button className="w-full text-green-500 font-semibold text-sm py-3 px-4 rounded-md border border-green-500 hover:bg-green-500 hover:text-white transition-colors duration-300">
-                 <Link to="/signin">Sign In</Link>
-               </button>
-            <button className="w-full bg-green-500 text-white font-semibold text-sm py-3 px-4 rounded-md hover:bg-green-600 transition-colors duration-300">
-              <Link to="/signup">Sign Up</Link>
-            </button>
-          </div>
+          {!isAuthed ? (
+            <div className="flex flex-col space-y-3">
+              {/* Logged OUT: Sign In / Sign Up (unchanged styles) */}
+              <button className="w-full text-green-500 font-semibold text-sm py-3 px-4 rounded-md border border-green-500 hover:bg-green-500 hover:text-white transition-colors duration-300">
+                <Link to="/signin">Sign In</Link>
+              </button>
+              <button className="w-full bg-green-500 text-white font-semibold text-sm py-3 px-4 rounded-md hover:bg-green-600 transition-colors duration-300">
+                <Link to="/signup">Sign Up</Link>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              {/* Logged IN: Avatar + Dashboard */}
+              <div className="flex items-center gap-3">
+                <img
+                  src={avatarUrl}
+                  alt="Profile"
+                  className="w-9 h-9 rounded-full border-2 border-white object-cover"
+                />
+                <div className="text-sm font-semibold text-gray-800">
+                  {(me?.first_name || "") + " " + (me?.last_name || "")}
+                </div>
+              </div>
+              <Link
+                to="/dashboard"
+                className="ml-4 bg-green-500 text-white font-semibold text-xs py-2 px-3 rounded-md hover:bg-green-600 transition-colors duration-300"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Dashboard
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </>

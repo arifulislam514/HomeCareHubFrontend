@@ -1,59 +1,199 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from "react";
+import authApiClient from "../../../services/auth-api-client";
 
-const BookingsIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>;
-const CompletedIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+// ---- Helpers ----
+const formatCurrency = (amount, currency = "USD") =>
+  new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(amount) ? amount : 0);
 
-const StatCard = ({ title, value, icon, color }) => (
-    <div className="bg-white p-6 rounded-xl shadow-md flex items-center space-x-4">
-        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${color}`}>{icon}</div>
-        <div>
-            <p className="text-gray-500 text-sm">{title}</p>
-            <p className="text-2xl font-bold text-[#083d41]">{value}</p>
-        </div>
-    </div>
-);
+const formatDate = (iso) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d)
+    ? String(iso)
+    : d.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+};
 
-export default function DashboardHomePage() {
-    const bookings = [
-        { id: '#1234', date: '2025-10-15', service: 'Deep House Clean', status: 'Upcoming', price: '$150' },
-        { id: '#1233', date: '2025-09-28', service: 'Office Cleaning', status: 'Completed', price: '$250' },
-    ];
-    
-    const getStatusClass = (status) => {
-        if (status === 'Upcoming') return 'bg-blue-100 text-blue-800';
-        if (status === 'Completed') return 'bg-green-100 text-green-800';
-        return 'bg-red-100 text-red-800';
+const toRow = (o) => {
+  const id = o?.id;
+  const code =
+    typeof id === "string" ? `#${id.slice(0, 8).toUpperCase()}` : `#${id}`;
+  const firstItem = o?.items?.[0];
+  const service = firstItem?.product?.name || "Service";
+  return {
+    id,
+    code,
+    service,
+    status: o?.status || "",
+    date: o?.created_at || "",
+    price: o?.total_price ?? 0,
+  };
+};
+
+const bucketStatus = (statusRaw = "") => {
+  const s = statusRaw.toLowerCase().trim();
+  if (["completed", "paid", "delivered", "fulfilled"].includes(s))
+    return "completed";
+  if (["cancelled", "canceled", "failed", "refunded"].includes(s))
+    return "cancelled";
+  if (
+    ["not paid", "pending", "processing", "confirmed", "scheduled"].includes(s)
+  )
+    return "upcoming";
+  return "upcoming";
+};
+
+export default function UserDashboard() {
+  const [me, setMe] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    const base = authApiClient?.defaults?.baseURL || "";
+    const mePath = /\/api\/v1\/?$/i.test(base)
+      ? "/users/me/"
+      : "/api/v1/users/me/";
+    const ordersPath = /\/api\/v1\/?$/i.test(base)
+      ? "/orders/"
+      : "/api/v1/orders/";
+
+    (async () => {
+      try {
+        const [{ data: meData }, ordersResp] = await Promise.all([
+          authApiClient.get(mePath),
+          authApiClient.get(ordersPath, {
+            params: { ordering: "-created_at", page_size: 5 },
+          }),
+        ]);
+        if (!cancelled) {
+          setMe(meData || null);
+          const raw = ordersResp?.data;
+          const arr = Array.isArray(raw)
+            ? raw
+            : Array.isArray(raw?.results)
+            ? raw.results
+            : [];
+          const rows = arr
+            .map(toRow)
+            .sort((a, b) => (a.date < b.date ? 1 : -1))
+            .slice(0, 5);
+          setOrders(rows);
+        }
+      } catch (e) {
+        if (!cancelled) setError("Failed to load dashboard data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
     };
+  }, []);
 
-    return (
-        <div>
-            <div className="mb-8">
-                <h2 className="text-3xl font-bold text-[#083d41]">Welcome back, Alex!</h2>
-                <p className="text-gray-500">Here's your cleaning service overview.</p>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                <StatCard title="Upcoming Cleanings" value="1" icon={<BookingsIcon />} color="bg-blue-500/20 text-blue-600" />
-                <StatCard title="Completed Services" value="24" icon={<CompletedIcon />} color="bg-green-500/20 text-green-600" />
-            </div>
-            <div className="bg-white p-6 rounded-xl shadow-md">
-                <h3 className="text-xl font-bold text-[#083d41] mb-4">Recent Bookings</h3>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="text-gray-500 text-sm border-b">
-                                <th className="py-3 px-4 font-normal">Booking ID</th><th className="py-3 px-4 font-normal">Date</th><th className="py-3 px-4 font-normal">Service</th><th className="py-3 px-4 font-normal text-center">Status</th><th className="py-3 px-4 font-normal text-right">Price</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {bookings.map(booking => (
-                                <tr key={booking.id} className="border-b last:border-0 hover:bg-gray-50">
-                                    <td className="py-4 px-4 font-semibold text-[#083d41]">{booking.id}</td><td className="py-4 px-4 text-gray-700">{booking.date}</td><td className="py-4 px-4 text-gray-700">{booking.service}</td><td className="py-4 px-4 text-center"><span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusClass(booking.status)}`}>{booking.status}</span></td><td className="py-4 px-4 text-right font-semibold text-[#083d41]">{booking.price}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+  const greetingName = me?.first_name || "there";
+  const stats = useMemo(() => {
+    let upcoming = 0,
+      completed = 0;
+    for (const r of orders) {
+      const b = bucketStatus(r.status);
+      if (b === "completed") completed += 1;
+      else if (b === "upcoming") upcoming += 1;
+    }
+    return { upcoming, completed };
+  }, [orders]);
+
+  return (
+    <div className="space-y-8">
+      <header className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">
+          Welcome back, {greetingName}!
+        </h1>
+      </header>
+
+      {/* Feedback */}
+      {loading && (
+        <p className="text-sm text-gray-500">Loading your dashboard…</p>
+      )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      {/* Stat tiles */}
+      <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <div className="text-sm text-gray-500">Upcoming Cleanings</div>
+          <div className="mt-2 text-3xl font-semibold">{stats.upcoming}</div>
         </div>
-    );
+        <div className="rounded-xl border bg-white p-5 shadow-sm">
+          <div className="text-sm text-gray-500">Completed Services</div>
+          <div className="mt-2 text-3xl font-semibold">{stats.completed}</div>
+        </div>
+      </section>
+
+      {/* Recent bookings */}
+      <section className="rounded-xl border bg-white p-5 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Recent Bookings</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="text-left text-gray-500">
+              <tr>
+                <th className="px-4 py-2 font-medium">Booking ID</th>
+                <th className="px-4 py-2 font-medium">Service</th>
+                <th className="px-4 py-2 font-medium">Date</th>
+                <th className="px-4 py-2 font-medium">Status</th>
+                <th className="px-4 py-2 font-medium">Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-gray-500">
+                    No recent bookings.
+                  </td>
+                </tr>
+              ) : (
+                orders.map((r) => (
+                  <tr key={r.id} className="border-b last:border-0">
+                    <td className="px-4 py-3 font-medium">{r.code}</td>
+                    <td className="px-4 py-3">{r.service}</td>
+                    <td className="px-4 py-3">{formatDate(r.date)}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={
+                          {
+                            upcoming:
+                              "inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-50 text-blue-700",
+                            completed:
+                              "inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-50 text-green-700",
+                            cancelled:
+                              "inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-50 text-red-700",
+                          }[bucketStatus(r.status)] ||
+                          "inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700"
+                        }
+                      >
+                        {r.status || "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatCurrency(r.price, "USD")}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
 }
