@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Star,
   ShoppingCart,
@@ -7,18 +7,15 @@ import {
   CheckCircle,
   Truck,
 } from "lucide-react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
-import useAuthContext from "../../hooks/useAuthContext";
+import { useParams } from "react-router-dom";
 import apiClient from "../../services/api-client"; // public axios instance
-import authApiClient from "../../services/auth-api-client"; // 🔐 auth axios
 
 /* ---------------- helpers: mapping + formatting ---------------- */
 
 const fixBase = (path) => {
-  const base =
-    apiClient?.defaults?.baseURL || authApiClient?.defaults?.baseURL || "";
-  // If baseURL already ends with /api/v1, strip ONLY a leading /api/v1 from path
-  return /\/api\/v1\/?$/i.test(base) ? path.replace(/^\/api\/v1/i, "") : path;
+  // If your apiClient baseURL already ends with /api/v1, avoid duplicating it.
+  const base = apiClient?.defaults?.baseURL || "";
+  return /\/api\/v1\/?$/i.test(base) ? path.replace("/api/v1", "") : path;
 };
 
 const toTwo = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0).toFixed(2);
@@ -53,6 +50,7 @@ const mapIn = (p = {}) => {
     images = [p.image];
   }
   if (images.length === 0) {
+    // fallback placeholders to preserve your gallery layout
     images = [
       "https://placehold.co/600x600/083d41/ffffff?text=Main",
       "https://placehold.co/600x600/22c55e/ffffff?text=Side",
@@ -61,11 +59,12 @@ const mapIn = (p = {}) => {
     ];
   }
 
-  // rating / reviews (fallbacks)
+  // rating / reviews (fallbacks if your API doesn't provide these)
   const rating = Number(p.rating ?? p.stars ?? 4.5);
   const reviews = Number(p.reviews_count ?? p.reviews ?? 128);
 
-  const inStock = p.in_stock ?? p.available ?? p.stock > 0 ?? true;
+  // stock
+  const inStock = p.in_stock ?? p.available ?? p.stock > 0 ?? true; // default true so your green "In Stock" shows
 
   return {
     name,
@@ -81,78 +80,17 @@ const mapIn = (p = {}) => {
   };
 };
 
-// Build many possible detail URLs and mark their kind
-const buildDetailCandidates = (rawId) => {
-  const idStr = String(rawId).trim();
-  const numeric = /^\d+$/.test(idStr);
-
-  const bases = [
-    { base: "/api/v1/products/", kind: "product" },
-    { base: "/products/", kind: "product" },
-    { base: "/api/v1/services/", kind: "service" },
-    { base: "/services/", kind: "service" },
-    { base: "/api/v1/product/", kind: "product" },
-    { base: "/product/", kind: "product" },
-    { base: "/api/v1/service/", kind: "service" },
-    { base: "/service/", kind: "service" },
-  ];
-
-  const tails = numeric
-    ? [`${idStr}/`, `${idStr}`]
-    : [`${idStr}/`, `${idStr}`, `slug/${idStr}/`, `slug/${idStr}`];
-
-  const urls = [];
-  for (const b of bases) {
-    for (const t of tails) {
-      urls.push({ url: fixBase(b.base + t), kind: b.kind });
-    }
-  }
-
-  // final list fallbacks: ?id=<id>
-  const listQueries = [
-    {
-      url: fixBase(`/api/v1/products/?id=${encodeURIComponent(idStr)}`),
-      kind: "product",
-      list: true,
-    },
-    {
-      url: fixBase(`/products/?id=${encodeURIComponent(idStr)}`),
-      kind: "product",
-      list: true,
-    },
-    {
-      url: fixBase(`/api/v1/services/?id=${encodeURIComponent(idStr)}`),
-      kind: "service",
-      list: true,
-    },
-    {
-      url: fixBase(`/services/?id=${encodeURIComponent(idStr)}`),
-      kind: "service",
-      list: true,
-    },
-  ];
-
-  return [...urls, ...listQueries];
-};
-
 /* ---------------- component ---------------- */
 
 const ProductDetailsPage = () => {
-  const { id } = useParams(); // may be slug or id from the route
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { user } = useAuthContext();
+  const { id } = useParams();
 
   const [loading, setLoading] = useState(true);
-  const [prod, setProd] = useState(() => mapIn());
+  const [prod, setProd] = useState(
+    () => mapIn() // seed with fallbacks so layout is stable before load
+  );
   const [mainImage, setMainImage] = useState(null);
   const [quantity, setQuantity] = useState(1);
-  const [error, setError] = useState("");
-  const [booking, setBooking] = useState(false);
-
-  // REAL backend object id (usually numeric) + what collection it came from
-  const [productId, setProductId] = useState(null);
-  const [productKind, setProductKind] = useState("product"); // "product" | "service"
 
   // Keep main image in sync with loaded images
   useEffect(() => {
@@ -161,56 +99,35 @@ const ProductDetailsPage = () => {
     }
   }, [prod.images, mainImage]);
 
-  // Load product using discovery (products/services, plural/singular, slug/id, with/without /api/v1)
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
         setLoading(true);
-        setError("");
 
-        const candidates = buildDetailCandidates(id);
-        let found = false;
+        // Try products/:id first, then services/:id
+        const candidates = [
+          fixBase(`/api/v1/products/${id}/`),
+          fixBase(`/products/${id}/`),
+          fixBase(`/api/v1/services/${id}/`),
+          fixBase(`/services/${id}/`),
+        ];
 
-        for (const c of candidates) {
+        for (const url of candidates) {
           try {
-            const res = await apiClient.get(c.url);
-            if (!res?.data) continue;
-
-            // If this was a list query (?id=), pick first match
-            const data = c.list
-              ? Array.isArray(res.data?.results)
-                ? res.data.results[0]
-                : Array.isArray(res.data)
-                ? res.data[0]
-                : res.data
-              : res.data;
-            if (!data) continue;
-
-            if (!cancelled) {
-              const mapped = mapIn(data);
+            const res = await apiClient.get(url);
+            if (!cancelled && res?.data) {
+              const mapped = mapIn(res.data);
               setProd(mapped);
-              setProductKind(c.kind);
               if (mapped.images?.length) setMainImage(mapped.images[0]);
-
-              // capture backend product id (supports id or pk)
-              const pid = data?.id ?? data?.pk ?? null;
-              if (pid != null) setProductId(pid);
-
-              found = true;
+              break;
             }
-            break;
+            // if no data, try next
           } catch {
-            // try next candidate
+            // try next
           }
         }
-
-        if (!found && !cancelled) {
-          setError("This item was not found.");
-        }
-      } catch {
-        if (!cancelled) setError("Failed to load product.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -221,148 +138,11 @@ const ProductDetailsPage = () => {
     };
   }, [id]);
 
-  // ---- Cart helpers (create/reuse user cart, add item) ----
-  const CART_KEY = "cart_id";
-
-  const ensureCartId = async () => {
-    let cartId = localStorage.getItem(CART_KEY);
-    if (cartId) return cartId;
-
-    try {
-      // Try create (most backends return 201 and the cart id)
-      const res = await authApiClient.post(fixBase(`/api/v1/carts/`));
-      cartId = res?.data?.id;
-      if (!cartId) throw new Error("Cart could not be created");
-      localStorage.setItem(CART_KEY, cartId);
-      return cartId;
-    } catch (e) {
-      // If already exists (400/409), try to fetch existing
-      const candidates = [
-        fixBase(`/api/v1/carts/mine/`),
-        fixBase(`/api/v1/carts/`),
-      ];
-      for (const url of candidates) {
-        try {
-          const r = await authApiClient.get(url);
-          const data = r?.data;
-          const idFromSingle = data?.id;
-          const idFromList = Array.isArray(data)
-            ? data[0]?.id
-            : Array.isArray(data?.results)
-            ? data.results[0]?.id
-            : null;
-          cartId = idFromSingle || idFromList;
-          if (cartId) {
-            localStorage.setItem(CART_KEY, cartId);
-            return cartId;
-          }
-        } catch {
-          // continue
-        }
-      }
-      throw e;
-    }
-  };
-
-  const addItemToCart = async (cartId, pidLike, qty) => {
-    const baseItems = fixBase(`/api/v1/carts/${cartId}/items/`);
-    const pid = /^\d+$/.test(String(pidLike)) ? Number(pidLike) : pidLike;
-    const quantity = Math.max(1, parseInt(qty, 10) || 1);
-
-    // Try ALL common payload shapes in a pragmatic order.
-    const payloads = [
-      { service_id: pid, quantity },
-      { service: pid, quantity },
-      { product_id: pid, quantity },
-      { product: pid, quantity },
-    ];
-
-    let lastErr = null;
-    for (const body of payloads) {
-      try {
-        await authApiClient.post(baseItems, body);
-        return; // success
-      } catch (e) {
-        const status = e?.response?.status;
-        if (status === 401)
-          throw Object.assign(new Error("AUTH"), { code: 401 });
-        lastErr = e; // keep and try next payload
-      }
-    }
-
-    // If POST didn’t work, the line may already exist → fetch, find, PATCH qty
-    const list = await authApiClient
-      .get(baseItems)
-      .then((r) =>
-        Array.isArray(r?.data)
-          ? r.data
-          : Array.isArray(r?.data?.results)
-          ? r.data.results
-          : []
-      )
-      .catch(() => []);
-
-    const found = list.find((li) => {
-      const lp = li?.product?.id ?? li?.product_id;
-      const ls = li?.service?.id ?? li?.service_id;
-      return ls == pid || lp == pid;
-    });
-
-    if (found?.id) {
-      await authApiClient.patch(
-        fixBase(`/api/v1/carts/${cartId}/items/${found.id}/`),
-        { quantity: (Number(found.quantity) || 1) + quantity }
-      );
-      return;
-    }
-
-    // Still failing → surface server error message if any
-    throw lastErr || new Error("Unable to add item");
-  };
-
-  // ---- Book Service → ensure cart → add item → go /checkout (or /signin) ----
-  const handleBook = async () => {
-    if (!user) {
-      navigate("/signin", { replace: true, state: { from: location } });
-      return;
-    }
-    try {
-      setError("");
-      setBooking(true);
-
-      const cartId = await ensureCartId();
-      const pid = productId ?? id; // prefer backend id, fallback to route param
-      await addItemToCart(cartId, pid, quantity);
-
-      navigate("/checkout");
-    } catch (e) {
-      if (e?.code === 401) {
-        navigate("/signin");
-        return;
-      }
-      const serverMsg =
-        typeof e?.response?.data === "string"
-          ? e.response.data
-          : e?.response?.data?.detail ||
-            e?.response?.data?.non_field_errors?.[0] ||
-            e?.response?.data?.service?.[0] ||
-            e?.response?.data?.service_id?.[0] ||
-            e?.response?.data?.product_id?.[0] ||
-            e?.response?.data?.service_id?.[0] ||
-            e?.response?.data?.product?.[0] ||
-            e?.message;
-      setError(serverMsg || "Could not add to cart. Please try again.");
-      // console.error("Add to cart failed:", e?.response?.data || e?.message || e);
-    } finally {
-      setBooking(false);
-    }
-  };
-
   const handleQuantityChange = (amount) => {
     setQuantity((prev) => Math.max(1, prev + amount));
   };
 
-  /* ---------------- UI (design unchanged) ---------------- */
+  /* ---------------- UI (unchanged design, now data-driven) ---------------- */
 
   return (
     <div className="font-sans bg-gray-50 p-4 sm:p-6 md:p-8">
@@ -447,42 +227,11 @@ const ProductDetailsPage = () => {
               )}
             </div>
 
-            {/* Quantity (kept simple, no design change) */}
-            <div className="flex items-center gap-4">
-              <div className="flex items-center bg-white rounded-xl shadow-sm border px-3 py-2">
-                <button
-                  onClick={() => handleQuantityChange(-1)}
-                  className="p-2 hover:scale-105 transition"
-                  aria-label="Decrease quantity"
-                >
-                  <Minus size={18} />
-                </button>
-                <span className="mx-3 min-w-[2rem] text-center font-semibold">
-                  {quantity}
-                </span>
-                <button
-                  onClick={() => handleQuantityChange(1)}
-                  className="p-2 hover:scale-105 transition"
-                  aria-label="Increase quantity"
-                >
-                  <Plus size={18} />
-                </button>
-              </div>
-            </div>
-
             <div className="bg-white p-6 rounded-2xl shadow-sm space-y-5">
-              <button
-                onClick={handleBook}
-                disabled={booking}
-                className="w-full flex items-center justify-center gap-3 bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl transition-transform hover:scale-[1.02] shadow-lg hover:shadow-green-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
+              <button className="w-full flex items-center justify-center gap-3 bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-xl transition-transform transform hover:scale-[1.02] shadow-lg hover:shadow-green-500/30">
                 <ShoppingCart size={22} />
-                <span>{booking ? "Adding…" : "Book Service"}</span>
+                <span>Book Service</span>
               </button>
-
-              {!!error && (
-                <p className="text-sm text-red-600 text-center">{error}</p>
-              )}
 
               <div className="flex justify-center items-center gap-2 text-sm text-green-600 font-semibold pt-2">
                 <CheckCircle size={16} />
