@@ -41,6 +41,7 @@ const Sidebar = ({ activePage, setActivePage }) => {
         await maybe; // handle promise-based logout implementations
       }
     } finally {
+      sessionStorage.removeItem("cart_id");
       // Replace history so back button can't return to an authed page
       navigate("/", { replace: true });
     }

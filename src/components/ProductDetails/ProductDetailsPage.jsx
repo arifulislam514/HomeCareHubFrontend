@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useParams } from "react-router-dom";
 import apiClient from "../../services/api-client"; // public axios instance
+import OneClickBooking from "../../services/OneClickBooking";
 
 /* ---------------- helpers: mapping + formatting ---------------- */
 
@@ -84,6 +85,8 @@ const mapIn = (p = {}) => {
 
 const ProductDetailsPage = () => {
   const { id } = useParams();
+  const productId = Number(id);
+  const { bookNow } = OneClickBooking();
 
   const [loading, setLoading] = useState(true);
   const [prod, setProd] = useState(
@@ -91,6 +94,8 @@ const ProductDetailsPage = () => {
   );
   const [mainImage, setMainImage] = useState(null);
   const [quantity, setQuantity] = useState(1);
+  const [booking, setBooking] = useState(false);
+  const [bookError, setBookError] = useState(null);
 
   // Keep main image in sync with loaded images
   useEffect(() => {
@@ -110,8 +115,6 @@ const ProductDetailsPage = () => {
         const candidates = [
           fixBase(`/api/v1/products/${id}/`),
           fixBase(`/products/${id}/`),
-          fixBase(`/api/v1/services/${id}/`),
-          fixBase(`/services/${id}/`),
         ];
 
         for (const url of candidates) {
@@ -142,11 +145,31 @@ const ProductDetailsPage = () => {
     setQuantity((prev) => Math.max(1, prev + amount));
   };
 
-  /* ---------------- UI (unchanged design, now data-driven) ---------------- */
+  const handleBook = async () => {
+    try {
+      setBookError(null);
+      setBooking(true);
+      await bookNow(productId, quantity);
+    } catch (e) {
+      const msg =
+        e?.response?.data?.error ||
+        e?.response?.data?.detail ||
+        e?.message ||
+        "Something went wrong";
+      setBookError(msg);
+      setBooking(false);
+    }
+  };
 
   return (
     <div className="font-sans bg-gray-50 p-4 sm:p-6 md:p-8">
       <div className="max-w-7xl mx-auto">
+        {/* simple loading toast (non-blocking) */}
+        {loading && (
+          <div className="mt-6 mx-auto w-max bg-white border border-gray-200 shadow-sm rounded-full px-4 py-2 text-sm text-gray-600">
+            Loading product…
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Left Column: Image Gallery */}
           <div className="space-y-4">
@@ -228,17 +251,25 @@ const ProductDetailsPage = () => {
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm space-y-5">
-              <button className="w-full flex items-center justify-center gap-3 bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-xl transition-transform transform hover:scale-[1.02] shadow-lg hover:shadow-green-500/30">
+              <button
+                onClick={handleBook}
+                disabled={booking}
+                className="w-full flex items-center justify-center gap-3 bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-xl transition-transform transform hover:scale-[1.02] shadow-lg hover:shadow-green-500/30"
+              >
                 <ShoppingCart size={22} />
-                <span>Book Service</span>
+                <span>{booking ? "Processing..." : "Book Service"}</span>
               </button>
 
-              <div className="flex justify-center items-center gap-2 text-sm text-green-600 font-semibold pt-2">
+              {bookError && (
+                <p className="text-red-600 text-sm text-center">{bookError}</p>
+              )}
+
+              {/* <div className="flex justify-center items-center gap-2 text-sm text-green-600 font-semibold pt-2">
                 <CheckCircle size={16} />
                 <span>
                   {prod.inStock ? "In Stock & Ready to Ship" : "Out of Stock"}
                 </span>
-              </div>
+              </div> */}
             </div>
 
             <div className="border-t pt-6 space-y-4">
@@ -264,13 +295,6 @@ const ProductDetailsPage = () => {
             </div>
           </div>
         </div>
-
-        {/* simple loading toast (non-blocking) */}
-        {loading && (
-          <div className="mt-6 mx-auto w-max bg-white border border-gray-200 shadow-sm rounded-full px-4 py-2 text-sm text-gray-600">
-            Loading product…
-          </div>
-        )}
       </div>
     </div>
   );

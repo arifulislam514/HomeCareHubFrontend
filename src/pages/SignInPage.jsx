@@ -1,5 +1,5 @@
 import { useForm } from "react-hook-form";
-import { Link, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, Link } from "react-router-dom";
 import useAuthContext from "../hooks/useAuthContext";
 import ErroAlert from "../components/ErroAlert";
 import { useEffect, useState } from "react";
@@ -87,6 +87,7 @@ const Logo = () => (
 const isAdminUser = (u) => u?.role === "Admin";
 
 export default function SignInPage() {
+  const location = useLocation();
   const {
     register,
     handleSubmit,
@@ -96,12 +97,19 @@ export default function SignInPage() {
   const { user, errorMsg, loginUser } = useAuthContext();
   const [loading, setLoading] = useState(false);
 
+  const getNext = () => {
+    const params = new URLSearchParams(location.search);
+    return params.get("next");
+  };
+
   // redirect after the auth context sets `user`
   useEffect(() => {
     if (!user) return;
-    console.log("User role:", user.role);
-    console.log("ME from /auth/users/me/:", user.role);
-    console.log("isAdminUser:", isAdminUser(user));
+    const next = getNext();
+    if (next) {
+      navigate(next, { replace: true });
+      return;
+    }
     navigate(isAdminUser(user) ? "/admin" : "/dashboard", { replace: true });
   }, [user, navigate]);
 
@@ -109,8 +117,16 @@ export default function SignInPage() {
     setLoading(true);
     try {
       const me = await loginUser(data);
-      if (me)
-        navigate(isAdminUser(me) ? "/admin" : "/dashboard", { replace: true });
+      if (me) {
+        const next = getNext();
+        if (next) {
+          navigate(next, { replace: true });
+        } else {
+          navigate(isAdminUser(me) ? "/admin" : "/dashboard", {
+            replace: true,
+          });
+        }
+      }
     } finally {
       setLoading(false);
     }

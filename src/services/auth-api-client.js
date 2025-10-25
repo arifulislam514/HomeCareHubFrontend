@@ -1,10 +1,9 @@
 import axios from "axios";
 
 const authApiClient = axios.create({
-  baseURL: "https://home-care-hub.vercel.app/api/v1",
+  // baseURL: "https://home-care-hub.vercel.app/api/v1",
+  baseURL: "http://127.0.0.1:8000/api/v1/",
 });
-
-export default authApiClient;
 
 authApiClient.interceptors.request.use(
   (config) => {
@@ -16,3 +15,18 @@ authApiClient.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
+
+// auto redirect on 401 with ?next=
+authApiClient.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err?.response?.status === 401) {
+      sessionStorage.removeItem("cart_id");
+      const next = window.location.pathname + window.location.search;
+      window.location.href = `/signin?next=${encodeURIComponent(next)}`;
+    }
+    return Promise.reject(err);
+  }
+);
+
+export default authApiClient;
