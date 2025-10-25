@@ -186,50 +186,52 @@ export default function CheckoutPage() {
     }
   };
 
-  // Place order → POST /orders/ { cart_id }
+  // Place order → payment → redirect
   const placeOrder = async () => {
     setPlacing(true);
     setError(null);
-
     try {
       if (!cartId) throw new Error("No cart available");
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new Error("Your cart is empty");
+      }
 
-      // 1) Create the order
-      const { data: order } = await authApiClient.post("/orders/", {
+      // 1) Create order
+      const orderRes = await authApiClient.post("/orders/", {
         cart_id: cartId,
       });
-      // order: { id, total_price, items: [...] }
+      const order = orderRes?.data || {};
 
-      // 2) Prepare payment payload (what your backend expects)
-      const amount = Number(order?.total_price || 0);
-      const numItems = Array.isArray(order?.items) ? order.items.length : 0;
-      const orderId = order?.id;
+      // 2) Build payment payload (keep it flexible)
+      const amount = Number(order?.total_price ?? cartTotal ?? 0);
+      const orderId = order?.id ?? order?.order_id ?? order?.uuid;
+      const numItems = Array.isArray(order?.items)
+        ? order.items.length
+        : items.length;
+      if (!orderId || !amount)
+        throw new Error("Order created but amount or order id missing");
 
-      if (!orderId || !amount) {
-        throw new Error("Order created but missing amount or order ID");
-      }
-
-      // 3) Initiate payment (adjust the path if your backend differs)
-      const { data: pay } = await authApiClient.post("/payment/initiate/", {
-        amount,
-        orderId,
-        numItems,
+      // 3) Initiate payment
+      const payRes = await authApiClient.post("/payment/initiate/", {
+        amount: amount,
+        order_id: orderId, // match backend naming (optional if your view handles both)
+        num_items: numItems, // <-- THIS is the key your backend uses
       });
+      const pay = payRes?.data || {};
 
-      // 4) Redirect to gateway
-      if (pay?.payment_url) {
-        try {
-          sessionStorage.removeItem("cart_id");
-        } catch {}
-        window.location.href = pay.payment_url; // go to SSLCommerz hosted page
-        return;
-      }
+      // 4) Redirect to payment page (support multiple shapes)
+      const redirectUrl = pay.payment_url || pay.GatewayPageURL || pay.url;
+      if (!redirectUrl) throw new Error("Payment URL not returned from server");
 
-      throw new Error("Payment initiation failed — no payment_url returned");
+      try {
+        sessionStorage.removeItem("cart_id");
+      } catch {}
+      window.location.href = redirectUrl;
     } catch (e) {
       const msg =
         e?.response?.data?.detail ||
         e?.response?.data?.error ||
+        (typeof e?.response?.data === "string" ? e.response.data : null) ||
         e?.message ||
         "Failed to place order";
       setError(msg);

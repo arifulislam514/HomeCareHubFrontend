@@ -1,8 +1,8 @@
 import axios from "axios";
 
 const authApiClient = axios.create({
-  // baseURL: "https://home-care-hub.vercel.app/api/v1",
-  baseURL: "http://127.0.0.1:8000/api/v1/",
+  baseURL: "https://home-care-hub.vercel.app/api/v1",
+  // baseURL: "http://127.0.0.1:8000/api/v1",
 });
 
 authApiClient.interceptors.request.use(
@@ -24,6 +24,10 @@ authApiClient.interceptors.response.use(
       sessionStorage.removeItem("cart_id");
       const next = window.location.pathname + window.location.search;
       window.location.href = `/signin?next=${encodeURIComponent(next)}`;
+    }
+    // Dev helper: log backend validation errors loudly
+    if (err?.response?.status === 400) {
+      console.error("400 from API:", err.response.data);
     }
     return Promise.reject(err);
   }

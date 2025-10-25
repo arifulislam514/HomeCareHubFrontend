@@ -84,7 +84,16 @@ const Logo = () => (
   </div>
 );
 
-const isAdminUser = (u) => u?.role === "Admin";
+const isAdminUser = (u) =>
+  !!(
+    u &&
+    (u.is_staff ||
+      u.is_superuser ||
+      u.is_admin ||
+      u.role === "Admin" ||
+      u?.groups?.includes?.("Admin") ||
+      u?.groups?.some?.((g) => (g?.name || g) === "Admin"))
+  );
 
 export default function SignInPage() {
   const location = useLocation();
@@ -118,11 +127,21 @@ export default function SignInPage() {
     try {
       const me = await loginUser(data);
       if (me) {
+        try {
+          sessionStorage.removeItem("cart_id");
+        } catch {}
+        let who = me;
+        try {
+          const { data: profile } = await authApiClient.get("/auth/users/me/");
+          if (profile) who = profile;
+        } catch {
+          /* ignore; fall back to me */
+        }
         const next = getNext();
         if (next) {
           navigate(next, { replace: true });
         } else {
-          navigate(isAdminUser(me) ? "/admin" : "/dashboard", {
+          navigate(isAdminUser(who) ? "/admin" : "/dashboard", {
             replace: true,
           });
         }

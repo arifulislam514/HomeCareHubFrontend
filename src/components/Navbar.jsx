@@ -65,6 +65,18 @@ const absUrl = (url, base) => {
   }
 };
 
+// Robust admin check (match your AdminRoute logic)
+const isAdminUser = (u) =>
+  !!(
+    u &&
+    (u.is_staff ||
+      u.is_superuser ||
+      u.is_admin ||
+      u?.role === "Admin" ||
+      u?.groups?.includes?.("Admin") ||
+      u?.groups?.some?.((g) => (g?.name || g) === "Admin"))
+  );
+
 export default function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -77,7 +89,7 @@ export default function App() {
 
     if (hasTokens) {
       const base = authApiClient?.defaults?.baseURL || "";
-      const mePath = /\/api\/v1\/?$/i.test(base) ? "/users/me/" : "/api/v1/users/me/";
+      const mePath = "/auth/users/me/";
       authApiClient
         .get(mePath)
         .then(({ data }) => setMe(data))
@@ -91,6 +103,9 @@ export default function App() {
     : `https://placehold.co/36x36/EBF4FA/083d41?text=${encodeURIComponent(
         initials(me?.first_name, me?.last_name)
       )}`;
+
+  const dashboardPath = isAdminUser(me) ? "/admin" : "/dashboard";
+  const dashboardLabel = isAdminUser(me) ? "Admin" : "Dashboard";
 
   const navLinks = [
     { text: "HOME", path: "/" },
@@ -156,10 +171,10 @@ export default function App() {
                     <>
                       {/* Logged IN: show Dashboard + Avatar */}
                       <Link
-                        to="/dashboard"
+                        to={dashboardPath}
                         className="bg-green-500 text-white font-semibold text-sm py-2 px-4 rounded-md hover:bg-green-600 transition-colors duration-300"
                       >
-                        Dashboard
+                        {dashboardLabel}
                       </Link>
                       <Link
                         to="/dashboard/profile"
@@ -273,11 +288,11 @@ export default function App() {
                 </div>
               </div>
               <Link
-                to="/dashboard"
+                to={dashboardPath}
                 className="ml-4 bg-green-500 text-white font-semibold text-xs py-2 px-3 rounded-md hover:bg-green-600 transition-colors duration-300"
                 onClick={() => setIsMenuOpen(false)}
               >
-                Dashboard
+                {dashboardLabel}
               </Link>
             </div>
           )}

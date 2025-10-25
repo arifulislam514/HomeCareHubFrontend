@@ -20,6 +20,7 @@ import PrivateRoute from "../components/PrivateRoute";
 import ProductEditPage from "../components/Products/ProductEditPage";
 import ProductDetailsPage from "../components/ProductDetails/ProductDetailsPage";
 import CheckoutPage from "../components/Payment/CheckoutPage";
+import PaymentResult from "../components/Payment/PaymentResult";
 
 const AppRoutes = () => {
   return (
@@ -37,6 +38,9 @@ const AppRoutes = () => {
         {/* Protected route for checkout */}
         <Route element={<PrivateRoute />}>
           <Route path="checkout" element={<CheckoutPage />} />
+          <Route path="payment/success" element={<PaymentResult status="success" />} />
+          <Route path="payment/fail" element={<PaymentResult status="failed" />} />
+          <Route path="payment/cancel" element={<PaymentResult status="cancel" />} />
         </Route>
       </Route>
 
