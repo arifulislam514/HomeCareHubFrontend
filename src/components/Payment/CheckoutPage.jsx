@@ -3,6 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { User, MapPin, ArrowRight, Edit3, Check } from "lucide-react";
 import authApiClient from "../../services/auth-api-client";
 
+const getFriendly = (e) =>
+  e?.friendlyMessage ||
+  e?.response?.data?.detail ||
+  e?.response?.data?.error ||
+  (typeof e?.response?.data === "string"
+    ? e.response.data.slice(0, 200)
+    : null) ||
+  e?.message ||
+  "Something went wrong.";
+
 // Reusable Input Field
 const InputField = ({
   label,
@@ -141,12 +151,7 @@ export default function CheckoutPage() {
         setEditingShipping(!hasSavedShipping);
       } catch (e) {
         if (cancelled) return;
-        const msg =
-          e?.response?.data?.detail ||
-          e?.response?.data?.error ||
-          e?.message ||
-          "Failed to load checkout";
-        setError(msg);
+        setError(getFriendly(e) || "Failed to load checkout");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -228,13 +233,19 @@ export default function CheckoutPage() {
       } catch {}
       window.location.href = redirectUrl;
     } catch (e) {
-      const msg =
-        e?.response?.data?.detail ||
-        e?.response?.data?.error ||
-        (typeof e?.response?.data === "string" ? e.response.data : null) ||
-        e?.message ||
-        "Failed to place order";
-      setError(msg);
+      const msg = getFriendly(e) || "Failed to place order";
+      // small UX niceties
+      if (/amount mismatch/i.test(msg)) {
+        setError("Order total mismatch. Please refresh and try again.");
+      } else if (/invalid order/i.test(msg)) {
+        setError("This order is no longer valid. Please restart checkout.");
+      } else if (/sign in|authentication/i.test(msg)) {
+        setError("Please sign in to continue.");
+      } else if (/server error/i.test(msg)) {
+        setError("Server error — please try again.");
+      } else {
+        setError(msg);
+      }
       setPlacing(false);
     }
   };
@@ -274,7 +285,11 @@ export default function CheckoutPage() {
           <p className="text-gray-500 mt-2">
             You're just a few steps away from your purchase.
           </p>
-          {error && <p className="text-red-600 mt-3">{error}</p>}
+          {error && (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 text-red-700 px-4 py-3">
+              {error}
+            </div>
+          )}
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 items-start">
