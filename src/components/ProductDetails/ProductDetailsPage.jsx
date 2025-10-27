@@ -45,7 +45,11 @@ const mapIn = (p = {}) => {
   let images = [];
   if (Array.isArray(p.images)) {
     images = p.images
-      .map((im) => (typeof im === "string" ? im : im?.url))
+      .map((im) => {
+        if (typeof im === "string") return im;
+        // support both shapes: { url: "..." } and { image: "..." }
+        return im?.url || im?.image || null;
+      })
       .filter(Boolean);
   } else if (p.image) {
     images = [p.image];

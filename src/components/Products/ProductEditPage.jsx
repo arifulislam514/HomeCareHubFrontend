@@ -76,6 +76,19 @@ const tryEndpoints = async (candidates, options = {}) => {
   throw new Error("No matching endpoint responded successfully.");
 };
 
+const refreshImages = async (base, id) => {
+  try {
+    const detailCandidates = [`${base}${id}/`, `${base}${id}`];
+    const { data: product } = await tryEndpoints(detailCandidates, {
+      method: "GET",
+    });
+    const mapped = mapIn(product);
+    setExistingImages(mapped.images);
+  } catch (e) {
+    console.error("Failed to refresh images", e);
+  }
+};
+
 /** Map backend product -> form shape */
 const mapIn = (p) => {
   const name = p?.name ?? p?.title ?? "Product";
@@ -91,9 +104,16 @@ const mapIn = (p) => {
   // images: array of urls, or single string
   let images = [];
   if (Array.isArray(p?.images)) {
-    images = p.images.map((im) => (typeof im === "string" ? im : im?.url)).filter(Boolean);
+    images = p.images
+      .map((im) => {
+        if (typeof im === "string") return { id: null, url: im };
+        const url = im?.url || im?.image || null;
+        const id = im?.id ?? null;
+        return url ? { id, url } : null;
+      })
+      .filter(Boolean);
   } else if (p?.image) {
-    images = [p.image];
+    images = [{ id: p?.id ?? null, url: p.image }];
   }
 
   return {
@@ -117,10 +137,8 @@ const mapOutJson = (form) => {
     price: Number(form.price || 0),
     price_with_tax: Number(form.price || 0),
 
-    sale_price:
-      form.salePrice !== "" ? Number(form.salePrice) : null,
-    sale_price_with_tax:
-      form.salePrice !== "" ? Number(form.salePrice) : null,
+    sale_price: form.salePrice !== "" ? Number(form.salePrice) : null,
+    sale_price_with_tax: form.salePrice !== "" ? Number(form.salePrice) : null,
   };
   return payload;
 };
@@ -155,35 +173,49 @@ const ProductEditPage = () => {
   const [salePrice, setSalePrice] = useState(isCreate ? "" : "39.99");
 
   // images
-  const [existingUrls, setExistingUrls] = useState(
-    isCreate
-      ? []
-      : [
-          "https://placehold.co/600x600/083d41/ffffff?text=Image+1",
-          "https://placehold.co/600x600/22c55e/ffffff?text=Image+2",
-          "https://placehold.co/600x600/eab308/ffffff?text=Image+3",
-        ]
-  );
+  const [existingImages, setExistingImages] = useState([]);
   const [newFiles, setNewFiles] = useState([]); // [{file, preview}]
 
   const allImages = useMemo(
     () => [
-      ...existingUrls.map((u) => ({ type: "url", value: u })),
-      ...newFiles.map((f) => ({ type: "file", value: f.preview })),
+      ...existingImages.map((it) => ({
+        type: "existing",
+        id: it.id,
+        src: it.url,
+      })),
+      ...newFiles.map((f, i) => ({ type: "new", idx: i, src: f.preview })),
     ],
-    [existingUrls, newFiles]
+    [existingImages, newFiles]
   );
 
-  const removeImage = (index) => {
-    const current = allImages;
-    const target = current[index];
-    if (!target) return;
-    if (target.type === "url") {
-      setExistingUrls((prev) => prev.filter((u, i) => i !== index));
-    } else {
-      const urlCount = existingUrls.length;
-      const fileIdx = index - urlCount;
-      setNewFiles((prev) => prev.filter((_, i) => i !== fileIdx));
+  const removeImage = async (index) => {
+    const item = allImages[index];
+    if (!item) return;
+
+    // New (not uploaded yet): just remove from local list
+    if (item.type === "new") {
+      setNewFiles((prev) => prev.filter((_, i) => i !== item.idx));
+      return;
+    }
+
+    // Existing on server: call DELETE /products/{productId}/images/{imageId}/
+    if (item.type === "existing") {
+      if (!productId || !endpointBase) return;
+
+      try {
+        const id = item.id;
+        // Only products expose the nested route in your screenshots,
+        // so we use the resolved base + ensure it points to /products/
+        const productsBase = endpointBase.toLowerCase().includes("/products/")
+          ? endpointBase
+          : endpointBase.replace("/services/", "/products/");
+
+        await authApiClient.delete(`${productsBase}${productId}/images/${id}/`);
+        // Remove from UI
+        setExistingImages((prev) => prev.filter((im) => im.id !== id));
+      } catch (e) {
+        alert("Failed to delete image.");
+      }
     }
   };
 
@@ -208,10 +240,14 @@ const ProductEditPage = () => {
         // prefer the inferred collection first
         const preferProducts = collectionType === "products";
         const listCandidates = [
-          preferProducts ? resolveBaseAware("/api/v1/products/") : resolveBaseAware("/api/v1/services/"),
+          preferProducts
+            ? resolveBaseAware("/api/v1/products/")
+            : resolveBaseAware("/api/v1/services/"),
           preferProducts ? "/products/" : "/services/",
           // fallbacks (the other collection, just in case)
-          preferProducts ? resolveBaseAware("/api/v1/services/") : resolveBaseAware("/api/v1/products/"),
+          preferProducts
+            ? resolveBaseAware("/api/v1/services/")
+            : resolveBaseAware("/api/v1/products/"),
           preferProducts ? "/services/" : "/products/",
         ];
 
@@ -231,7 +267,11 @@ const ProductEditPage = () => {
         setEndpointBase(baseFound);
 
         // finalize the actual collection type we got
-        setCollectionType(baseFound.toLowerCase().includes("/services/") ? "services" : "products");
+        setCollectionType(
+          baseFound.toLowerCase().includes("/services/")
+            ? "services"
+            : "products"
+        );
 
         // if creating, no need to fetch details
         if (isCreate) return;
@@ -245,15 +285,17 @@ const ProductEditPage = () => {
           `${baseFound}${productId}`,
         ];
 
-        const { data: product } = await tryEndpoints(detailCandidates, { method: "GET" });
+        const { data: product } = await tryEndpoints(detailCandidates, {
+          method: "GET",
+        });
         if (cancelled || !product) return;
 
         const mapped = mapIn(product);
+        setExistingImages(mapped.images);
         setName(mapped.name);
         setDescription(mapped.description);
         setPrice(mapped.price);
         setSalePrice(mapped.salePrice);
-        setExistingUrls(mapped.images);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -268,33 +310,28 @@ const ProductEditPage = () => {
   const uploadImagesIfAny = async (base, id) => {
     if (!newFiles.length) return true;
 
-    const form = new FormData();
-    newFiles.forEach((nf) => form.append("images", nf.file)); // adjust field name if needed
+    // Ensure we call the products nested endpoint: /products/{id}/images/
+    const productsBase = base.toLowerCase().includes("/products/")
+      ? base
+      : base.replace("/services/", "/products/");
 
-    const uploadCandidates = [
-      `${base}${id}/`,           // same endpoint accepts multipart PATCH
-      `${base}${id}/images/`,    // separate images endpoint
-      `${base}${id}/upload/`,    // another common pattern
-    ];
+    try {
+      // Upload each selected file independently
+      for (const nf of newFiles) {
+        const form = new FormData();
+        form.append("image", nf.file); // <-- field name your API expects
 
-    for (const ep of uploadCandidates) {
-      try {
-        await authApiClient.patch(ep, form, {
+        await authApiClient.post(`${productsBase}${id}/images/`, form, {
           headers: { "Content-Type": "multipart/form-data" },
         });
-        return true;
-      } catch {
-        // try next
+        setNewFiles([]);
+        await refreshImages(productsBase, id);
       }
-    }
-
-    // fallback: try PUT multipart
-    try {
-      await authApiClient.put(`${base}${id}/`, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      // Clear the pending files after success
+      setNewFiles([]);
       return true;
-    } catch {
+    } catch (e) {
+      console.error(e);
       return false;
     }
   };
@@ -311,8 +348,13 @@ const ProductEditPage = () => {
 
       if (isCreate) {
         // CREATE
-        const { data: created } = await authApiClient.post(endpointBase, payload);
-        const newId = String(created?.id || created?.pk || created?.uuid || "").trim();
+        const { data: created } = await authApiClient.post(
+          endpointBase,
+          payload
+        );
+        const newId = String(
+          created?.id || created?.pk || created?.uuid || ""
+        ).trim();
         if (!newId) {
           alert("Created, but could not determine new item id.");
           setSaving(false);
@@ -374,7 +416,13 @@ const ProductEditPage = () => {
             onClick={handleSave}
             disabled={saving}
           >
-            {saving ? (isCreate ? "Creating..." : "Saving...") : (isCreate ? "Create Product" : "Save Changes")}
+            {saving
+              ? isCreate
+                ? "Creating..."
+                : "Saving..."
+              : isCreate
+              ? "Create Product"
+              : "Save Changes"}
           </button>
         </div>
       </header>
@@ -421,14 +469,18 @@ const ProductEditPage = () => {
               <InputField
                 label="Price"
                 value={price}
-                onChange={(e) => setPrice(e.target.value.replace(/[^\d.]/g, ""))}
+                onChange={(e) =>
+                  setPrice(e.target.value.replace(/[^\d.]/g, ""))
+                }
                 placeholder="0.00"
                 icon={<DollarSign size={16} />}
               />
               <InputField
                 label="Price (On Sale)"
                 value={salePrice}
-                onChange={(e) => setSalePrice(e.target.value.replace(/[^\d.]/g, ""))}
+                onChange={(e) =>
+                  setSalePrice(e.target.value.replace(/[^\d.]/g, ""))
+                }
                 placeholder="0.00"
                 icon={<DollarSign size={16} />}
               />
@@ -447,13 +499,13 @@ const ProductEditPage = () => {
           >
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-4">
-                {allImages.map((img, index) => (
+                {allImages.map((item, index) => (
                   <div
                     key={index}
                     className="relative group aspect-square rounded-lg overflow-hidden"
                   >
                     <img
-                      src={img.value}
+                      src={item.src}
                       alt={`Product thumbnail ${index + 1}`}
                       className="w-full h-full object-cover"
                     />

@@ -118,6 +118,31 @@ const getServiceIcon = (serviceName) => {
   return iconMap[serviceName] || iconMap["default"];
 };
 
+const fixBase = (path) => {
+  const base = apiClient?.defaults?.baseURL || "";
+  return /\/api\/v1\/?$/i.test(base) ? path.replace("/api/v1", "") : path;
+};
+
+const normalizeService = (p = {}) => {
+  // pick an image from string, images[0].url, or images[0].image
+  let image = null;
+  if (typeof p.image === "string") {
+    image = p.image;
+  } else if (Array.isArray(p.images) && p.images.length) {
+    const first = p.images[0];
+    image =
+      typeof first === "string" ? first : first?.url || first?.image || null;
+  }
+
+  return {
+    id: p.id,
+    name: p.name || p.title || "Service",
+    description: p.description || p.desc || "",
+    price: p.price_with_tax ?? p.price ?? null,
+    image: image || "https://placehold.co/800x450/083d41/ffffff?text=Service", // fallback keeps layout stable
+  };
+};
+
 // --- Reusable Service Card Component ---
 const ServiceCard = ({ image, icon, title, description }) => (
   // ... (ServiceCard component remains the same)
@@ -161,10 +186,10 @@ export default function ExcellentService() {
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        // Use your apiClient to get products. Adjust the endpoint if needed.
-        const response = await apiClient.get("/products/");
-        // Your data might be in response.data or response.data.results
-        setServices(response.data.results || response.data);
+        const url = fixBase("/api/v1/products/"); // safer if baseURL already has /api/v1
+        const response = await apiClient.get(url);
+        const raw = response.data?.results || response.data || [];
+        setServices(raw.map(normalizeService));
       } catch (err) {
         setError("Failed to fetch services. Please try again later.");
         console.error(err);
@@ -240,13 +265,11 @@ export default function ExcellentService() {
                   className="flex-shrink-0 w-full sm:w-1/2 md:w-1/3 lg:w-1/4 snap-center px-3"
                 >
                   <Link to={`/products/${service.id}`} className="block">
-                    {" "}
-                    {/* ← NEW */}
                     <ServiceCard
                       image={service.image}
                       icon={getServiceIcon(service.name)}
                       title={service.name}
-                      description={service.desc}
+                      description={service.description}
                       price={service.price}
                     />
                   </Link>
