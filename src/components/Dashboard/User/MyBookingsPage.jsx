@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import authApiClient from "../../../services/auth-api-client";
+import { Link } from "react-router-dom";
 
 // --- SVG Icon Components ---
 const CalendarIcon = () => (
@@ -260,9 +261,11 @@ const MyBookingsPage = () => {
           <h2 className="text-3xl font-bold text-[#083d41]">My Bookings</h2>
           <p className="text-gray-500">View and manage your service history.</p>
         </div>
-        <button className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-5 rounded-lg transition-colors">
+        <Link
+        to="/service"
+          className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-5 rounded-lg transition-colors">
           + Book New Service
-        </button>
+        </Link>
       </div>
 
       {/* Filters */}

@@ -320,7 +320,6 @@ const ManageBookingsPage = () => {
                 <th className="py-3 px-4 font-semibold">Client</th>
                 <th className="py-3 px-4 font-semibold">Date</th>
                 <th className="py-3 px-4 font-semibold">Service</th>
-                <th className="py-3 px-4 font-semibold">Team</th>
                 <th className="py-3 px-4 font-semibold text-center">Status</th>
                 <th className="py-3 px-4 font-semibold text-right">Price</th>
                 <th className="py-3 px-4 font-semibold text-center">Actions</th>
@@ -351,18 +350,6 @@ const ManageBookingsPage = () => {
                     <td className="py-4 px-4 text-gray-600">{booking.date}</td>
                     <td className="py-4 px-4 text-gray-800">
                       {booking.service}
-                    </td>
-                    <td className="py-4 px-4">
-                      <div className="flex -space-x-2">
-                        {booking.team.map((member) => (
-                          <img
-                            key={member}
-                            className="w-8 h-8 rounded-full border-2 border-white"
-                            src={`https://placehold.co/40x40/EBF4FA/333333?text=${member}`}
-                            alt={`Team member ${member}`}
-                          />
-                        ))}
-                      </div>
                     </td>
 
                     {/* --- NEW: editable Status cell --- */}
@@ -397,13 +384,6 @@ const ManageBookingsPage = () => {
                             </option>
                           ))}
                         </select>
-
-                        <button
-                          className="text-gray-500 hover:text-gray-800 p-1 rounded-full hover:bg-gray-200"
-                          title="More actions"
-                        >
-                          <DotsVerticalIcon />
-                        </button>
                       </div>
                     </td>
                   </tr>

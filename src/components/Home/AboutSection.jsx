@@ -3,6 +3,7 @@ import img1 from "../../assets/images/Home/AboutSection_1.jpg";
 import img2 from "../../assets/images/Home/AboutSection_2.jpg";
 import img3 from "../../assets/images/Home/AboutSection_3.jpg";
 import { PaintbrushVertical } from 'lucide-react';
+import { Link } from "react-router-dom";
 
 
 // --- SVG Icon Components ---
@@ -112,10 +113,12 @@ export default function AboutSection() {
                                         <p className="font-bold text-lg text-[#083d41]">+88(0) 1237 6421</p>
                                     </div>
                                 </div>
-                                <button className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full flex items-center justify-center transition duration-300 group w-full sm:w-auto">
+                                <Link 
+                                    to="/service"
+                                    className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-full flex items-center justify-center transition duration-300 group w-full sm:w-auto">
                                     Book Service
                                     <ArrowRightIcon />
-                                </button>
+                                </Link>
                             </div>
                         </div>
                     </div>
