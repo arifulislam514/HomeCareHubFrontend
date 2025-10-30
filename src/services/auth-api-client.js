@@ -2,8 +2,8 @@
 import axios from "axios";
 
 const authApiClient = axios.create({
-  // baseURL: "https://home-care-hub.vercel.app/api/v1",
-  baseURL: "http://127.0.0.1:8000/api/v1",
+  baseURL: "https://home-care-hub.vercel.app/api/v1",
+  // baseURL: "http://127.0.0.1:8000/api/v1",
   headers: {
     Accept: "application/json",               // prefer JSON
     "X-Requested-With": "XMLHttpRequest",     // hint to server that it's AJAX
