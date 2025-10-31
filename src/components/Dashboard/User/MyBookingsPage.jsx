@@ -311,9 +311,6 @@ const MyBookingsPage = () => {
                   {booking.status}
                 </span>
                 <span className="text-xl font-bold text-[#083d41]">{booking.price}</span>
-                <button className="text-gray-500 hover:text-gray-800">
-                  <DotsVerticalIcon />
-                </button>
               </div>
             </div>
             {booking.team.length > 0 && (
